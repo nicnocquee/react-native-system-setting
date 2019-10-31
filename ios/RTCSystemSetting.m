@@ -12,6 +12,7 @@
 #import <CoreTelephony/CTTelephonyNetworkInfo.h>
 #import <ifaddrs.h>
 #import <net/if.h>
+#import <Network/Network.h>
 
 #ifdef BLUETOOTH
 #import <CoreBluetooth/CoreBluetooth.h>
@@ -24,6 +25,10 @@
 #ifdef BLUETOOTH
 <CBCentralManagerDelegate>
 #endif
+
+@property (strong,nonatomic) nw_path_monitor_t pathMonitor;
+@property (assign, nonatomic) bool isAirplaneMode;
+
 @end
 
 @implementation RCTSystemSetting {
@@ -52,6 +57,23 @@
 #ifdef PRIVATE_API
     [self initSetting];
 #endif
+
+    if (@available(iOS 12, *)) {
+        self.pathMonitor = nw_path_monitor_create_with_type(nw_interface_type_cellular);
+        nw_path_monitor_set_update_handler(self.pathMonitor, ^(nw_path_t  _Nonnull path) {
+            __block int interfaces = 0;
+            nw_path_enumerate_interfaces(path, ^bool(nw_interface_t  _Nonnull interface) {
+                interfaces++;
+                return true;
+            });
+            if (interfaces == 0) {
+                self.isAirplaneMode = true;
+            } else {
+                self.isAirplaneMode = false;
+            }
+        });
+        nw_path_monitor_start(self.pathMonitor);
+    }
 
     return self;
 }
@@ -144,9 +166,13 @@ RCT_EXPORT_METHOD(switchAirplane){
 }
 
 RCT_EXPORT_METHOD(isAirplaneEnabled:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject){
-    NSString * radio = [[CTTelephonyNetworkInfo alloc] init].currentRadioAccessTechnology;
-    bool isEnabled = radio == nil;
-    resolve([NSNumber numberWithBool:isEnabled]);
+    if (@available(iOS 12, *)) {
+        resolve([NSNumber numberWithBool:self.isAirplaneMode]);
+    } else {
+        NSString * radio = [[CTTelephonyNetworkInfo alloc] init].currentRadioAccessTechnology;
+        bool isEnabled = radio == nil;
+        resolve([NSNumber numberWithBool:isEnabled]);
+    }
 }
 
 RCT_EXPORT_METHOD(activeListener:(NSString *)type resolve:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject){
