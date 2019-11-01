@@ -169,9 +169,13 @@ RCT_EXPORT_METHOD(isAirplaneEnabled:(RCTPromiseResolveBlock)resolve rejecter:(RC
     if (@available(iOS 12, *)) {
         resolve([NSNumber numberWithBool:self.isAirplaneMode]);
     } else {
-        NSString * radio = [[CTTelephonyNetworkInfo alloc] init].currentRadioAccessTechnology;
-        bool isEnabled = radio == nil;
-        resolve([NSNumber numberWithBool:isEnabled]);
+        // When calling this isAirplaneEnabled method immediately after turning on airplane mode, it will not return true.
+        // We need to delay getting currentRadioAccessTechnology to get the correct result
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(4 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            NSString * radio = [[CTTelephonyNetworkInfo alloc] init].currentRadioAccessTechnology;
+            bool isEnabled = radio == nil;
+            resolve([NSNumber numberWithBool:isEnabled]);
+        });
     }
 }
 
